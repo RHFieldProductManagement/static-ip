@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Static IP Setup with CoreOS Testing
+# Rhys Oxenham <roxenham@redhat.com>
+
+for i in $(nmcli device status | awk '!/lo|DEVICE/ {print $1;}');
+do
+	mac_address=$(cat /sys/class/net/$i/address)
+        if [ "$(cat /etc/static-ip-config.json  | jq ".hosts | has(\"$mac_address\")")" == "true" ];
+        then
+		ipaddr=$(cat /etc/static-ip-config.json | jq -r ".hosts.\"$mac_address\".ipv4")
+		netmask_long=$(cat /etc/static-ip-config.json | jq -r ".hosts.\"$mac_address\".netmask")
+		netmask_short=$(ipcalc -p 1.1.1.1 $netmask_long | cut -d "=" -f2)
+		gateway=$(cat /etc/static-ip-config.json | jq -r ".hosts.\"$mac_address\".gwv4")
+		dns=$(cat /etc/static-ip-config.json | jq -r ".hosts.\"$mac_address\".dns1")
+		hostname=$(cat /etc/static-ip-config.json | jq -r ".hosts.\"$mac_address\".hostname")
+		nmcli con add type ethernet con-name static-$i ifname $i
+		nmcli con modify static-$i ipv4.addresses $ipaddr/$netmask_short ipv4.method manual
+                nmcli con modify static-$i ipv4.gateway $gateway ipv4.dns $dns
+                nmcli con up static-$i
+                nmcli general hostname $hostname
+	fi
+done
